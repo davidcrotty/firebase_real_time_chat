@@ -29,6 +29,9 @@ import android.widget.ImageButton;
 import android.widget.ListView;
 import android.widget.ProgressBar;
 
+import com.google.firebase.firestore.CollectionReference;
+import com.google.firebase.firestore.FirebaseFirestore;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,6 +52,9 @@ public class MainActivity extends AppCompatActivity {
     private Button mSendButton;
 
     private String mUsername;
+
+    private FirebaseFirestore database = FirebaseFirestore.getInstance();
+    private CollectionReference messages = database.collection("messages");
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -108,6 +114,8 @@ public class MainActivity extends AppCompatActivity {
                 // TODO: Send messages on click
 
                 // Clear input box
+                FriendlyMessage friendlyMessage = new FriendlyMessage(mMessageEditText.getText().toString(), mUsername, null);
+                messages.add(friendlyMessage);
                 mMessageEditText.setText("");
             }
         });
