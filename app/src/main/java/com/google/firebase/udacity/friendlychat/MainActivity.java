@@ -16,7 +16,6 @@
 package com.google.firebase.udacity.friendlychat;
 
 import android.os.Bundle;
-import android.support.v7.app.AppCompatActivity;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.TextWatcher;
@@ -32,6 +31,8 @@ import android.widget.ProgressBar;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
 
