@@ -34,16 +34,19 @@ import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import com.firebase.ui.auth.AuthUI;
+import com.firebase.ui.auth.data.model.User;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.DocumentChange;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
+import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.MetadataChanges;
 import com.google.firebase.firestore.QuerySnapshot;
 
@@ -132,8 +135,6 @@ public class MainActivity extends AppCompatActivity {
         mSendButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                // TODO: Send messages on click
-
                 // Clear input box
                 FriendlyMessage friendlyMessage = new FriendlyMessage(mMessageEditText.getText().toString(), mUsername, null);
                 messages.add(friendlyMessage).addOnFailureListener(new OnFailureListener() {
@@ -151,31 +152,13 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        messages.addSnapshotListener(MetadataChanges.INCLUDE, new EventListener<QuerySnapshot>() {
-
-            @Override
-            public void onEvent(@Nullable QuerySnapshot queryDocumentSnapshots, @Nullable FirebaseFirestoreException e) {
-                if (e != null || queryDocumentSnapshots == null) {
-                    Log.w("MainActivity", "error fetching doc");
-                }
-
-                List<DocumentChange> changes = queryDocumentSnapshots.getDocumentChanges();
-                for (DocumentChange document : changes) {
-                    switch (document.getType()) {
-                        case ADDED:
-                            // insert
-                            FriendlyMessage message = document.getDocument().toObject(FriendlyMessage.class);
-                            mMessageAdapter.add(message);
-                            break;
-                    }
-                }
-            }
-        });
         authStateListener = new FirebaseAuth.AuthStateListener() {
 
             @Override
             public void onAuthStateChanged(@NonNull FirebaseAuth firebaseAuth) {
-                if (firebaseAuth.getCurrentUser() == null) {
+                FirebaseUser user = firebaseAuth.getCurrentUser();
+                if (user == null) {
+                    onSignedOutCleanup();
                     startActivityForResult(
                             AuthUI.getInstance().createSignInIntentBuilder()
                                     .setIsSmartLockEnabled(false) // disable remembering passwords
@@ -186,10 +169,13 @@ public class MainActivity extends AppCompatActivity {
                                     .build(),
                             RC_FIREBASE_UI);
                 } else {
-                    Toast.makeText(MainActivity.this, "Signed into friendly chat!", Toast.LENGTH_SHORT).show();
+                    onSignedInInitialize(user.getDisplayName());
                 }
             }
         };
+
+        mMessageAdapter.clear();
+        detachDatabaseReadListener();
     }
 
     @Override
@@ -214,5 +200,50 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         firebaseAuth.removeAuthStateListener(authStateListener);
+    }
+
+    private void onSignedInInitialize(String username) {
+        mUsername = username;
+        attachDatabaseReadListener();
+    }
+
+    private void onSignedOutCleanup() {
+        mUsername = ANONYMOUS;
+        mMessageAdapter.clear();
+        detachDatabaseReadListener();
+    }
+
+    private void detachDatabaseReadListener() {
+        if (databaseListener != null) {
+            databaseListener.remove();
+            databaseListener = null;
+        }
+    }
+
+    private ListenerRegistration databaseListener;
+
+    private void attachDatabaseReadListener() {
+        if (databaseListener == null) {
+            databaseListener = messages.addSnapshotListener(MetadataChanges.INCLUDE, new EventListener<QuerySnapshot>() {
+
+                @Override
+                public void onEvent(@Nullable QuerySnapshot queryDocumentSnapshots, @Nullable FirebaseFirestoreException e) {
+                    if (e != null || queryDocumentSnapshots == null) {
+                        Log.w("MainActivity", "error fetching doc");
+                    }
+
+                    List<DocumentChange> changes = queryDocumentSnapshots.getDocumentChanges();
+                    for (DocumentChange document : changes) {
+                        switch (document.getType()) {
+                            case ADDED:
+                                // insert
+                                FriendlyMessage message = document.getDocument().toObject(FriendlyMessage.class);
+                                mMessageAdapter.add(message);
+                                break;
+                        }
+                    }
+                }
+            });
+        }
     }
 }
