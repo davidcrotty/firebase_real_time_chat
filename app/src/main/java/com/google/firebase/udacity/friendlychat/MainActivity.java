@@ -38,6 +38,7 @@ import com.firebase.ui.auth.AuthUI;
 import com.firebase.ui.auth.data.model.User;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -50,6 +51,9 @@ import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.MetadataChanges;
 import com.google.firebase.firestore.QuerySnapshot;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
+import com.google.firebase.storage.UploadTask;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -64,6 +68,7 @@ public class MainActivity extends AppCompatActivity {
     public static final String ANONYMOUS = "anonymous";
     public static final int DEFAULT_MSG_LENGTH_LIMIT = 1000;
     public static final int RC_FIREBASE_UI = 1;
+    public static final int RC_PHOTO_PICKER = 2;
 
     private ListView mMessageListView;
     private MessageAdapter mMessageAdapter;
@@ -78,6 +83,8 @@ public class MainActivity extends AppCompatActivity {
     private CollectionReference messages = database.collection("messages");
     private FirebaseAuth firebaseAuth;
     private FirebaseAuth.AuthStateListener authStateListener;
+    private FirebaseStorage storage = FirebaseStorage.getInstance();
+    private StorageReference photosReference = storage.getReference("chat_photos");
 
 
     @Override
@@ -175,6 +182,16 @@ public class MainActivity extends AppCompatActivity {
             }
         };
 
+        mPhotoPickerButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                intent.setType("image/jpeg");
+                intent.putExtra(Intent.EXTRA_LOCAL_ONLY, true);
+                startActivityForResult(Intent.createChooser(intent, "Complete action using"), RC_PHOTO_PICKER);
+            }
+        });
+
         mMessageAdapter.clear();
         detachDatabaseReadListener();
     }
@@ -210,7 +227,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, @android.support.annotation.Nullable Intent data) {
+    protected void onActivityResult(int requestCode, int resultCode, @android.support.annotation.Nullable final Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == RC_FIREBASE_UI) {
             if (resultCode == RESULT_OK) {
@@ -218,6 +235,18 @@ public class MainActivity extends AppCompatActivity {
             } else if (resultCode == RESULT_CANCELED) {
                 Toast.makeText(this, "Signed in cancelled", Toast.LENGTH_SHORT).show();
                 finish();
+            }
+        } else if (requestCode == RC_PHOTO_PICKER) {
+            if (resultCode == RESULT_OK) {
+                StorageReference photo = photosReference.child(data.getData().getLastPathSegment());
+                photo.putFile(data.getData()).addOnSuccessListener(this, new OnSuccessListener<UploadTask.TaskSnapshot>() {
+                    @Override
+                    public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                        // add to friendly adapter
+                        FriendlyMessage message = new FriendlyMessage(null, mUsername, data.getData().toString());
+                        messages.add(message);
+                    }
+                });
             }
         }
     }
