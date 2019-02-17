@@ -51,13 +51,17 @@ import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.MetadataChanges;
 import com.google.firebase.firestore.QuerySnapshot;
+import com.google.firebase.remoteconfig.FirebaseRemoteConfig;
+import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import com.google.firebase.storage.UploadTask;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.annotation.Nullable;
 
@@ -69,6 +73,7 @@ public class MainActivity extends AppCompatActivity {
     public static final int DEFAULT_MSG_LENGTH_LIMIT = 1000;
     public static final int RC_FIREBASE_UI = 1;
     public static final int RC_PHOTO_PICKER = 2;
+    public static final String FRIENDLY_MESSAGE_KEY = "friendly_msg_length";
 
     private ListView mMessageListView;
     private MessageAdapter mMessageAdapter;
@@ -85,6 +90,8 @@ public class MainActivity extends AppCompatActivity {
     private FirebaseAuth.AuthStateListener authStateListener;
     private FirebaseStorage storage = FirebaseStorage.getInstance();
     private StorageReference photosReference = storage.getReference("chat_photos");
+    private FirebaseRemoteConfig config = FirebaseRemoteConfig.getInstance();
+    private ListenerRegistration databaseListener;
 
 
     @Override
@@ -194,6 +201,17 @@ public class MainActivity extends AppCompatActivity {
 
         mMessageAdapter.clear();
         detachDatabaseReadListener();
+
+        FirebaseRemoteConfigSettings settings = new FirebaseRemoteConfigSettings.Builder()
+                .setDeveloperModeEnabled(BuildConfig.DEBUG)
+                .build();
+        config.setConfigSettings(settings);
+
+        Map<String, Object> defaults = new HashMap<>();
+        defaults.put(FRIENDLY_MESSAGE_KEY, DEFAULT_MSG_LENGTH_LIMIT);
+        config.setDefaults(defaults);
+
+        applyChanges();
     }
 
     @Override
@@ -251,6 +269,38 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // apply changes
+    // set some sensible defaults
+    // add listener
+
+    private void applyChanges() {
+
+        int cacheExpiry = 3600;
+
+        if (BuildConfig.DEBUG) {
+            cacheExpiry = 0;
+        }
+
+        config.fetch(cacheExpiry).addOnCompleteListener(new OnCompleteListener<Void>() {
+            @Override
+            public void onComplete(@NonNull Task<Void> task) {
+                config.activateFetched();
+                setTextLimit();
+            }
+        }).addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception e) {
+                setTextLimit();
+            }
+        });
+    }
+
+    private void setTextLimit() {
+        mMessageEditText.setFilters(new InputFilter[]{new InputFilter.LengthFilter(
+                ((Long) config.getLong(FRIENDLY_MESSAGE_KEY)).intValue()
+        )});
+    }
+
     private void onSignedInInitialize(String username) {
         mUsername = username;
         attachDatabaseReadListener();
@@ -268,8 +318,6 @@ public class MainActivity extends AppCompatActivity {
             databaseListener = null;
         }
     }
-
-    private ListenerRegistration databaseListener;
 
     private void attachDatabaseReadListener() {
         if (databaseListener == null) {

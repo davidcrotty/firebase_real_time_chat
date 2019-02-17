@@ -49,6 +49,9 @@ dependencies {
 
     // Push
     implementation 'com.google.firebase:firebase-messaging:17.3.4'
+
+    // Remote config
+    implementation 'com.google.firebase:firebase-config:16.3.0'
 }
 
 apply plugin: 'com.google.gms.google-services'
