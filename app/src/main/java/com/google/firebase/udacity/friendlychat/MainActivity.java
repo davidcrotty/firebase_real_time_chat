@@ -19,6 +19,7 @@ import android.os.Bundle;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -29,12 +30,24 @@ import android.widget.ImageButton;
 import android.widget.ListView;
 import android.widget.ProgressBar;
 
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.Task;
 import com.google.firebase.firestore.CollectionReference;
+import com.google.firebase.firestore.DocumentChange;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.FirebaseFirestoreException;
+import com.google.firebase.firestore.MetadataChanges;
+import com.google.firebase.firestore.QuerySnapshot;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.annotation.Nullable;
+
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
@@ -115,8 +128,39 @@ public class MainActivity extends AppCompatActivity {
 
                 // Clear input box
                 FriendlyMessage friendlyMessage = new FriendlyMessage(mMessageEditText.getText().toString(), mUsername, null);
-                messages.add(friendlyMessage);
+                messages.add(friendlyMessage).addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        e.printStackTrace();
+                    }
+                }).addOnCompleteListener(new OnCompleteListener<DocumentReference>() {
+                    @Override
+                    public void onComplete(@NonNull Task<DocumentReference> task) {
+                        Log.d("Main", "Completed");
+                    }
+                });
                 mMessageEditText.setText("");
+            }
+        });
+
+        messages.addSnapshotListener(MetadataChanges.INCLUDE, new EventListener<QuerySnapshot>() {
+
+            @Override
+            public void onEvent(@Nullable QuerySnapshot queryDocumentSnapshots, @Nullable FirebaseFirestoreException e) {
+                if (e != null || queryDocumentSnapshots == null) {
+                    Log.w("MainActivity", "error fetching doc");
+                }
+
+                List<DocumentChange> changes = queryDocumentSnapshots.getDocumentChanges();
+                for (DocumentChange document : changes) {
+                    switch (document.getType()) {
+                        case ADDED:
+                            // insert
+                            FriendlyMessage message = document.getDocument().toObject(FriendlyMessage.class);
+                            mMessageAdapter.add(message);
+                            break;
+                    }
+                }
             }
         });
     }
