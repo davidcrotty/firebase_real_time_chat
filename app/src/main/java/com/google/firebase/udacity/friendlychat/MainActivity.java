@@ -29,10 +29,13 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ListView;
 import android.widget.ProgressBar;
+import android.widget.Toast;
 
+import com.firebase.ui.auth.AuthUI;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.Task;
+import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.DocumentChange;
 import com.google.firebase.firestore.DocumentReference;
@@ -43,6 +46,7 @@ import com.google.firebase.firestore.MetadataChanges;
 import com.google.firebase.firestore.QuerySnapshot;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import javax.annotation.Nullable;
@@ -56,6 +60,7 @@ public class MainActivity extends AppCompatActivity {
 
     public static final String ANONYMOUS = "anonymous";
     public static final int DEFAULT_MSG_LENGTH_LIMIT = 1000;
+    public static final int RC_FIREBASE_UI = 1;
 
     private ListView mMessageListView;
     private MessageAdapter mMessageAdapter;
@@ -68,6 +73,9 @@ public class MainActivity extends AppCompatActivity {
 
     private FirebaseFirestore database = FirebaseFirestore.getInstance();
     private CollectionReference messages = database.collection("messages");
+    private FirebaseAuth firebaseAuth;
+    private FirebaseAuth.AuthStateListener authStateListener;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,6 +83,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         mUsername = ANONYMOUS;
+        firebaseAuth = FirebaseAuth.getInstance();
 
         // Initialize references to views
         mProgressBar = (ProgressBar) findViewById(R.id.progressBar);
@@ -163,6 +172,25 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+        authStateListener = new FirebaseAuth.AuthStateListener() {
+
+            @Override
+            public void onAuthStateChanged(@NonNull FirebaseAuth firebaseAuth) {
+                if (firebaseAuth.getCurrentUser() == null) {
+                    startActivityForResult(
+                            AuthUI.getInstance().createSignInIntentBuilder()
+                                    .setIsSmartLockEnabled(false) // disable remembering passwords
+                                    .setAvailableProviders(Arrays.asList(
+                                            new AuthUI.IdpConfig.GoogleBuilder().build(),
+                                            new AuthUI.IdpConfig.EmailBuilder().build()
+                                    ))
+                                    .build(),
+                            RC_FIREBASE_UI);
+                } else {
+                    Toast.makeText(MainActivity.this, "Signed into friendly chat!", Toast.LENGTH_SHORT).show();
+                }
+            }
+        };
     }
 
     @Override
@@ -175,5 +203,17 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        firebaseAuth.addAuthStateListener(authStateListener);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        firebaseAuth.removeAuthStateListener(authStateListener);
     }
 }
